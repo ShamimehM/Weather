@@ -1,0 +1,9 @@
+target/
+.tools/
+.weather-dashboard/
+TEST_OUTPUT_*.txt
+.idea/
+*.iml
+.classpath
+.project
+.settings/
