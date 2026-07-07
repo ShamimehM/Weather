@@ -123,7 +123,6 @@ public class WeatherDashboardFxApp extends Application {
         topRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
         topRow.setFillHeight(true);
-        logo.setAlignment(Pos.CENTER_RIGHT);
 
         cityField.setPromptText("Enter a city…");
         cityField.setPrefWidth(200);
