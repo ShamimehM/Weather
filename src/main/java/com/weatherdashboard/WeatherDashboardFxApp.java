@@ -19,6 +19,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -90,12 +91,13 @@ public class WeatherDashboardFxApp extends Application {
                 getClass().getResource("/styles/dashboard.css").toExternalForm()
         );
         stage.setTitle("Weather Dashboard");
-        stage.getIcons().addAll(
-                AppIcon.sun(16),
-                AppIcon.sun(32),
-                AppIcon.sun(48),
+        stage.getIcons().setAll(
+                AppIcon.sun(256),
+                AppIcon.sun(128),
                 AppIcon.sun(64),
-                AppIcon.sun(128)
+                AppIcon.sun(48),
+                AppIcon.sun(32),
+                AppIcon.sun(16)
         );
         stage.setMinWidth(1000);
         stage.setMinHeight(680);
@@ -110,7 +112,10 @@ public class WeatherDashboardFxApp extends Application {
         Label subtitle = new Label("Live forecasts · Open-Meteo");
         subtitle.getStyleClass().add("app-subtitle");
 
-        Label logo = new Label("\u2600");
+        ImageView logo = new ImageView(AppIcon.sun(48));
+        logo.setFitWidth(48);
+        logo.setFitHeight(48);
+        logo.setPreserveRatio(true);
         logo.getStyleClass().add("app-logo");
 
         VBox titleBlock = new VBox(4, title, subtitle);
@@ -118,7 +123,6 @@ public class WeatherDashboardFxApp extends Application {
         topRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
         topRow.setFillHeight(true);
-        logo.setMaxHeight(Double.MAX_VALUE);
         logo.setAlignment(Pos.CENTER_RIGHT);
 
         cityField.setPromptText("Enter a city…");
