@@ -10,9 +10,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
-/**
- * Headless smoke test — run with: mvn test-compile exec:java@smoke-test
- */
 public class WeatherDashboardSmokeTest {
 
     private static int passed = 0;

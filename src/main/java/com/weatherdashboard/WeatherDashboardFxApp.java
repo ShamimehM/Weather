@@ -169,21 +169,10 @@ public class WeatherDashboardFxApp extends Application {
         historyBox.setPrefWidth(280);
         VBox.setVgrow(historyList, Priority.ALWAYS);
 
-        VBox right = new VBox(12, favoritesBox, historyBox, roadmapPane());
+        VBox right = new VBox(12, favoritesBox, historyBox);
         VBox.setVgrow(favoritesBox, Priority.ALWAYS);
         VBox.setVgrow(historyBox, Priority.ALWAYS);
         return right;
-    }
-
-    private VBox roadmapPane() {
-        Label roadmap = new Label(
-                "Later:\n" +
-                        "- Weather alerts\n" +
-                        "- Air quality\n" +
-                        "- Sunrise/sunset\n" +
-                        "- More clothing recommendations"
-        );
-        return panel("Advanced Features Roadmap", roadmap);
     }
 
     private VBox panel(String title, javafx.scene.Node... nodes) {

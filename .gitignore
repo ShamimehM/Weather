@@ -1,9 +1,24 @@
+# Build
 target/
-.tools/
+
+# Local app data
 .weather-dashboard/
-TEST_OUTPUT_*.txt
+
+# Local tooling
+.tools/
+
+# IDE
 .idea/
 *.iml
 .classpath
 .project
 .settings/
+.vscode/
+
+# Test / dev artifacts
+TEST_LOG.md
+TEST_OUTPUT_*.txt
+
+# OS
+.DS_Store
+Thumbs.db

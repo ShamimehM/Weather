@@ -39,7 +39,6 @@ public class WeatherDashboardApp {
                 case "3" -> addFavorite();
                 case "4" -> removeFavorite();
                 case "5" -> showHistory();
-                case "6" -> showPlannedAdvancedFeatures();
                 case "0" -> running = false;
                 default -> System.out.println("Invalid option.\n");
             }
@@ -57,7 +56,6 @@ public class WeatherDashboardApp {
                 3) Save city as favorite
                 4) Remove favorite city
                 5) View weather history
-                6) Advanced features roadmap
                 0) Exit
                 Choose:\
                 """);
@@ -167,17 +165,6 @@ public class WeatherDashboardApp {
         } catch (IOException ex) {
             System.out.println("Cannot read history: " + ex.getMessage() + "\n");
         }
-    }
-
-    private void showPlannedAdvancedFeatures() {
-        System.out.println("""
-                --- Planned Advanced Features ---
-                - Weather alerts
-                - Air quality
-                - Sunrise/sunset
-                - Clothing recommendations (already basic)
-                """);
-        System.out.println();
     }
 
     private void printClothingRecommendation(double temperature, String condition) {
