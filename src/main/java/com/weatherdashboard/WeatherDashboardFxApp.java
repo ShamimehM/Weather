@@ -90,6 +90,13 @@ public class WeatherDashboardFxApp extends Application {
                 getClass().getResource("/styles/dashboard.css").toExternalForm()
         );
         stage.setTitle("Weather Dashboard");
+        stage.getIcons().addAll(
+                AppIcon.sun(16),
+                AppIcon.sun(32),
+                AppIcon.sun(48),
+                AppIcon.sun(64),
+                AppIcon.sun(128)
+        );
         stage.setMinWidth(1000);
         stage.setMinHeight(680);
         stage.setScene(scene);
@@ -102,6 +109,17 @@ public class WeatherDashboardFxApp extends Application {
 
         Label subtitle = new Label("Live forecasts · Open-Meteo");
         subtitle.getStyleClass().add("app-subtitle");
+
+        Label logo = new Label("\u2600");
+        logo.getStyleClass().add("app-logo");
+
+        VBox titleBlock = new VBox(4, title, subtitle);
+        HBox topRow = new HBox(titleBlock, logo);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(titleBlock, Priority.ALWAYS);
+        topRow.setFillHeight(true);
+        logo.setMaxHeight(Double.MAX_VALUE);
+        logo.setAlignment(Pos.CENTER_RIGHT);
 
         cityField.setPromptText("Enter a city…");
         cityField.setPrefWidth(200);
@@ -136,7 +154,7 @@ public class WeatherDashboardFxApp extends Application {
         searchRow.setAlignment(Pos.CENTER_LEFT);
         searchRow.getStyleClass().add("search-bar");
 
-        return new VBox(6, title, subtitle, searchRow);
+        return new VBox(12, topRow, searchRow);
     }
 
     private HBox buildMainContent() {
