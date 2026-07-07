@@ -1,5 +1,6 @@
 package com.weatherdashboard;
 
+import com.weatherdashboard.model.SavedLocation;
 import com.weatherdashboard.model.WeatherData;
 import com.weatherdashboard.service.OpenMeteoClient;
 import com.weatherdashboard.storage.LocalStorage;
@@ -13,8 +14,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -24,10 +27,12 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class WeatherDashboardFxApp extends Application {
+    private static final int MAX_COMPARE = 3;
     private static final List<String> DEFAULT_CITIES = List.of(
             "Oslo", "Rasht", "Tehran", "Shiraz", "Tabriz", "London", "Tokyo", "Toronto", "Sydney"
     );
@@ -39,6 +44,7 @@ public class WeatherDashboardFxApp extends Application {
     private final ComboBox<String> cityQuickSelect = new ComboBox<>();
     private final Label statusLabel = new Label("Search for a city to get started.");
     private final Label cityLabel = new Label("—");
+    private final Label regionLabel = new Label("");
     private final Label tempLabel = new Label("—");
     private final Label conditionsLabel = new Label("No data yet");
     private final Label humidityLabel = new Label("—");
@@ -46,11 +52,17 @@ public class WeatherDashboardFxApp extends Application {
     private final Label uvLabel = new Label("—");
     private final Label clothingLabel = new Label("—");
     private final ProgressIndicator loadingIndicator = new ProgressIndicator();
+    private final VBox hourlyContainer = new VBox(2);
+    private final VBox dailyContainer = new VBox(2);
+    private final HBox compareRow = new HBox(12);
+    private final VBox compareSection = new VBox(8);
 
-    private final ObservableList<String> hourlyItems = FXCollections.observableArrayList();
-    private final ObservableList<String> dailyItems = FXCollections.observableArrayList();
-    private final ObservableList<String> favoritesItems = FXCollections.observableArrayList();
-    private final ObservableList<String> historyItems = FXCollections.observableArrayList();
+    private final ObservableList<SavedLocation> favoritesItems = FXCollections.observableArrayList();
+    private final ObservableList<SavedLocation> historyItems = FXCollections.observableArrayList();
+    private final List<WeatherData> compareList = new ArrayList<>();
+
+    private WeatherData currentWeather;
+    private SavedLocation currentLocation;
 
     @Override
     public void start(Stage stage) throws Exception {
@@ -59,38 +71,40 @@ public class WeatherDashboardFxApp extends Application {
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("root");
-        root.setPadding(new Insets(24));
+        root.setPadding(new Insets(20));
 
         root.setTop(buildHeader());
         root.setCenter(buildMainContent());
         root.setRight(buildSidebar());
-        root.setBottom(statusLabel);
+        root.setBottom(new VBox(8, compareSection, statusLabel));
 
-        BorderPane.setMargin(root.getCenter(), new Insets(20, 20, 0, 0));
-        BorderPane.setMargin(root.getRight(), new Insets(20, 0, 0, 0));
+        BorderPane.setMargin(root.getCenter(), new Insets(16, 16, 0, 0));
+        BorderPane.setMargin(root.getRight(), new Insets(16, 0, 0, 0));
 
         statusLabel.getStyleClass().add("status-bar");
+        compareSection.setVisible(false);
+        compareSection.setManaged(false);
 
-        Scene scene = new Scene(root, 1200, 720);
+        Scene scene = new Scene(root, 1280, 760);
         scene.getStylesheets().add(
                 getClass().getResource("/styles/dashboard.css").toExternalForm()
         );
         stage.setTitle("Weather Dashboard");
-        stage.setMinWidth(960);
-        stage.setMinHeight(640);
+        stage.setMinWidth(1000);
+        stage.setMinHeight(680);
         stage.setScene(scene);
         stage.show();
     }
 
     private VBox buildHeader() {
-        Label title = new Label("Weather");
+        Label title = new Label("Weather Dashboard");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("Live forecasts powered by Open-Meteo");
+        Label subtitle = new Label("Live forecasts · Open-Meteo");
         subtitle.getStyleClass().add("app-subtitle");
 
         cityField.setPromptText("Enter a city…");
-        cityField.setPrefWidth(220);
+        cityField.setPrefWidth(200);
         cityField.setOnAction(event -> searchWeather());
 
         cityQuickSelect.getItems().setAll(DEFAULT_CITIES);
@@ -106,64 +120,89 @@ public class WeatherDashboardFxApp extends Application {
         Button searchBtn = new Button("Search");
         searchBtn.setOnAction(event -> searchWeather());
 
-        Button saveFavoriteBtn = new Button("★ Save");
+        Button saveFavoriteBtn = new Button("★ Favorite");
         saveFavoriteBtn.getStyleClass().add("button-secondary");
         saveFavoriteBtn.setOnAction(event -> saveCurrentAsFavorite());
 
-        HBox searchRow = new HBox(10, cityField, cityQuickSelect, searchBtn, saveFavoriteBtn);
+        Button compareBtn = new Button("Compare");
+        compareBtn.getStyleClass().add("button-secondary");
+        compareBtn.setOnAction(event -> addCurrentToCompare());
+
+        Button clearCompareBtn = new Button("Clear");
+        clearCompareBtn.getStyleClass().add("button-danger");
+        clearCompareBtn.setOnAction(event -> clearCompare());
+
+        HBox searchRow = new HBox(10, cityField, cityQuickSelect, searchBtn, saveFavoriteBtn, compareBtn, clearCompareBtn);
         searchRow.setAlignment(Pos.CENTER_LEFT);
         searchRow.getStyleClass().add("search-bar");
 
-        VBox header = new VBox(6, title, subtitle, searchRow);
-        return header;
+        return new VBox(6, title, subtitle, searchRow);
     }
 
-    private VBox buildMainContent() {
+    private HBox buildMainContent() {
         VBox hero = buildHeroCard();
+        hero.setPrefWidth(300);
+        hero.setMinWidth(260);
 
-        ListView<String> hourlyList = styledList(hourlyItems, "Hourly data will appear here.");
-        VBox hourlyCard = card("Next 24 Hours", hourlyList);
-        VBox.setVgrow(hourlyList, Priority.ALWAYS);
-
-        ListView<String> dailyList = styledList(dailyItems, "7-day forecast will appear here.");
-        VBox dailyCard = card("7-Day Outlook", dailyList);
-        VBox.setVgrow(dailyList, Priority.ALWAYS);
-
-        HBox forecasts = new HBox(16, hourlyCard, dailyCard);
+        ScrollPane hourlyScroll = forecastScroll(hourlyContainer, "Hourly forecast appears here.");
+        VBox hourlyCard = card("Next 24 Hours", hourlyScroll);
+        hourlyCard.setPrefWidth(280);
         HBox.setHgrow(hourlyCard, Priority.ALWAYS);
-        HBox.setHgrow(dailyCard, Priority.ALWAYS);
-        hourlyCard.setMaxWidth(Double.MAX_VALUE);
-        dailyCard.setMaxWidth(Double.MAX_VALUE);
 
-        VBox main = new VBox(16, hero, forecasts);
-        VBox.setVgrow(forecasts, Priority.ALWAYS);
+        ScrollPane dailyScroll = forecastScroll(dailyContainer, "7-day forecast appears here.");
+        VBox dailyCard = card("7-Day Outlook", dailyScroll);
+        dailyCard.setPrefWidth(280);
+        HBox.setHgrow(dailyCard, Priority.ALWAYS);
+
+        HBox main = new HBox(16, hero, hourlyCard, dailyCard);
+        HBox.setHgrow(hero, Priority.NEVER);
         return main;
+    }
+
+    private ScrollPane forecastScroll(VBox container, String placeholder) {
+        Label empty = new Label(placeholder);
+        empty.getStyleClass().add("forecast-condition");
+        container.getChildren().add(empty);
+
+        ScrollPane scroll = new ScrollPane(container);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setPrefHeight(420);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        return scroll;
     }
 
     private VBox buildHeroCard() {
         cityLabel.getStyleClass().add("city-name");
+        regionLabel.getStyleClass().add("city-region");
         tempLabel.getStyleClass().add("temp-hero");
         conditionsLabel.getStyleClass().add("conditions-hero");
         clothingLabel.getStyleClass().add("clothing-badge");
 
-        loadingIndicator.setMaxSize(32, 32);
+        loadingIndicator.setMaxSize(28, 28);
         loadingIndicator.setVisible(false);
         loadingIndicator.setManaged(false);
 
-        VBox tempBlock = new VBox(4, cityLabel, tempLabel, conditionsLabel, clothingLabel);
-        tempBlock.setAlignment(Pos.CENTER_LEFT);
-
-        HBox heroTop = new HBox(16, tempBlock, loadingIndicator);
-        heroTop.setAlignment(Pos.CENTER_LEFT);
+        HBox titleRow = new HBox(12, loadingIndicator);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
 
         GridPane stats = new GridPane();
-        stats.setHgap(24);
-        stats.setVgap(12);
+        stats.setHgap(20);
+        stats.setVgap(14);
         stats.add(statBlock("Humidity", humidityLabel), 0, 0);
-        stats.add(statBlock("Wind", windLabel), 1, 0);
-        stats.add(statBlock("UV Index", uvLabel), 2, 0);
+        stats.add(statBlock("Wind", windLabel), 0, 1);
+        stats.add(statBlock("UV Index", uvLabel), 0, 2);
 
-        VBox hero = new VBox(20, heroTop, stats);
+        VBox hero = new VBox(16,
+                titleRow,
+                cityLabel,
+                regionLabel,
+                tempLabel,
+                conditionsLabel,
+                clothingLabel,
+                stats
+        );
         hero.getStyleClass().add("card-hero");
         return hero;
     }
@@ -176,29 +215,35 @@ public class WeatherDashboardFxApp extends Application {
     }
 
     private VBox buildSidebar() {
-        ListView<String> favoritesList = styledList(favoritesItems, "No saved cities.");
+        ListView<SavedLocation> favoritesList = locationList(favoritesItems, "No saved cities.");
         favoritesList.setOnMouseClicked(event -> {
-            String selected = favoritesList.getSelectionModel().getSelectedItem();
-            if (selected != null && event.getClickCount() == 2) {
-                cityField.setText(selected);
-                searchWeather();
+            SavedLocation selected = favoritesList.getSelectionModel().getSelectedItem();
+            if (selected != null && event.getClickCount() >= 1) {
+                loadLocation(selected);
             }
         });
 
         Button removeFavoriteBtn = new Button("Remove");
-        removeFavoriteBtn.getStyleClass().addAll("button-danger");
+        removeFavoriteBtn.getStyleClass().add("button-danger");
         removeFavoriteBtn.setOnAction(event -> removeSelectedFavorite(favoritesList));
 
         VBox favoritesCard = card("Favorites", favoritesList, removeFavoriteBtn);
         VBox.setVgrow(favoritesList, Priority.ALWAYS);
-        favoritesCard.setPrefWidth(260);
-        favoritesCard.setMaxWidth(260);
+        favoritesCard.setPrefWidth(250);
+        favoritesCard.setMaxWidth(250);
 
-        ListView<String> historyList = styledList(historyItems, "No search history.");
+        ListView<SavedLocation> historyList = locationList(historyItems, "No recent searches.");
+        historyList.setOnMouseClicked(event -> {
+            SavedLocation selected = historyList.getSelectionModel().getSelectedItem();
+            if (selected != null && event.getClickCount() >= 1) {
+                loadLocation(selected);
+            }
+        });
+
         VBox historyCard = card("Recent Searches", historyList);
         VBox.setVgrow(historyList, Priority.ALWAYS);
-        historyCard.setPrefWidth(260);
-        historyCard.setMaxWidth(260);
+        historyCard.setPrefWidth(250);
+        historyCard.setMaxWidth(250);
 
         VBox sidebar = new VBox(16, favoritesCard, historyCard);
         VBox.setVgrow(favoritesCard, Priority.ALWAYS);
@@ -206,10 +251,16 @@ public class WeatherDashboardFxApp extends Application {
         return sidebar;
     }
 
-    private ListView<String> styledList(ObservableList<String> items, String placeholder) {
-        ListView<String> list = new ListView<>(items);
+    private ListView<SavedLocation> locationList(ObservableList<SavedLocation> items, String placeholder) {
+        ListView<SavedLocation> list = new ListView<>(items);
         list.setPlaceholder(new Label(placeholder));
-        list.setPrefHeight(200);
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(SavedLocation item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.displayName());
+            }
+        });
         return list;
     }
 
@@ -224,6 +275,9 @@ public class WeatherDashboardFxApp extends Application {
             if (node instanceof ListView<?> listView) {
                 VBox.setVgrow(listView, Priority.ALWAYS);
             }
+            if (node instanceof ScrollPane scrollPane) {
+                VBox.setVgrow(scrollPane, Priority.ALWAYS);
+            }
         }
         return box;
     }
@@ -234,25 +288,42 @@ public class WeatherDashboardFxApp extends Application {
             setStatus("Enter a city name to search.");
             return;
         }
+        fetchAndRender(() -> weatherClient.fetchWeather(city), city);
+    }
 
+    private void loadLocation(SavedLocation location) {
+        if (location.latitude() != 0 || location.longitude() != 0) {
+            cityField.setText(location.city());
+            fetchAndRender(() -> weatherClient.fetchWeather(
+                    location.latitude(), location.longitude(),
+                    location.city(), location.region(), location.country()
+            ), location.displayName());
+        } else {
+            cityField.setText(location.city());
+            searchWeather();
+        }
+    }
+
+    private void fetchAndRender(WeatherFetcher fetcher, String label) {
         setLoading(true);
-        setStatus("Loading weather for " + city + "…");
+        setStatus("Loading " + label + "…");
 
         CompletableFuture
                 .supplyAsync(() -> {
                     try {
-                        WeatherData data = weatherClient.fetchWeather(city);
-                        storage.saveSearchHistory(data.city());
-                        return data;
+                        return fetcher.fetch();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 })
                 .thenAccept(data -> Platform.runLater(() -> {
+                    currentWeather = data;
+                    currentLocation = SavedLocation.fromWeatherData(data);
+                    storage.saveSearchHistory(currentLocation);
                     renderWeather(data);
                     refreshHistory();
                     setLoading(false);
-                    setStatus("Updated · " + data.city());
+                    setStatus("Updated · " + data.displayLocation());
                 }))
                 .exceptionally(ex -> {
                     Platform.runLater(() -> {
@@ -265,6 +336,7 @@ public class WeatherDashboardFxApp extends Application {
 
     private void renderWeather(WeatherData data) {
         cityLabel.setText(data.city());
+        regionLabel.setText(buildRegionLine(data));
         tempLabel.setText(String.format("%.0f°", data.current().temperatureC()));
         conditionsLabel.setText(data.current().conditions());
         humidityLabel.setText(data.current().humidity() + "%");
@@ -272,22 +344,56 @@ public class WeatherDashboardFxApp extends Application {
         uvLabel.setText(String.format("%.1f", data.current().uvIndex()));
         clothingLabel.setText(clothingRecommendation(data.current().temperatureC(), data.current().conditions()));
 
-        hourlyItems.clear();
+        hourlyContainer.getChildren().clear();
         for (WeatherData.HourlyForecast hourly : data.hourlyForecast()) {
-            hourlyItems.add(String.format("%-5s   %.0f°   %s",
+            hourlyContainer.getChildren().add(hourlyRow(
                     hourly.time().toLocalTime().toString().substring(0, 5),
-                    hourly.temperatureC(),
-                    hourly.conditions()));
+                    String.format("%.0f°", hourly.temperatureC()),
+                    hourly.conditions()
+            ));
         }
 
-        dailyItems.clear();
+        dailyContainer.getChildren().clear();
         for (WeatherData.DailyForecast daily : data.dailyForecast()) {
-            dailyItems.add(String.format("%s   %.0f° / %.0f°   %s",
-                    daily.date(),
-                    daily.maxTempC(),
-                    daily.minTempC(),
-                    daily.conditions()));
+            dailyContainer.getChildren().add(dailyRow(
+                    daily.date().toString(),
+                    String.format("%.0f° / %.0f°", daily.maxTempC(), daily.minTempC()),
+                    daily.conditions()
+            ));
         }
+    }
+
+    private HBox hourlyRow(String time, String temp, String condition) {
+        Label timeLabel = new Label(time);
+        timeLabel.getStyleClass().add("forecast-time");
+        Label tempLabel = new Label(temp);
+        tempLabel.getStyleClass().add("forecast-temp");
+        Label condLabel = new Label(condition);
+        condLabel.getStyleClass().add("forecast-condition");
+        HBox row = new HBox(16, timeLabel, tempLabel, condLabel);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("forecast-row");
+        return row;
+    }
+
+    private HBox dailyRow(String date, String temps, String condition) {
+        Label dateLabel = new Label(date);
+        dateLabel.getStyleClass().add("daily-date");
+        Label tempLabel = new Label(temps);
+        tempLabel.getStyleClass().add("daily-temps");
+        Label condLabel = new Label(condition);
+        condLabel.getStyleClass().add("forecast-condition");
+        HBox row = new HBox(16, dateLabel, tempLabel, condLabel);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("forecast-row");
+        return row;
+    }
+
+    private String buildRegionLine(WeatherData data) {
+        if (data.region() != null && !data.region().isBlank()) {
+            return data.region() + ", " + data.country();
+        }
+        return data.country() != null ? data.country() : "";
     }
 
     private void setLoading(boolean loading) {
@@ -296,22 +402,21 @@ public class WeatherDashboardFxApp extends Application {
     }
 
     private void saveCurrentAsFavorite() {
-        String city = cityField.getText() == null ? "" : cityField.getText().trim();
-        if (city.isBlank()) {
+        if (currentLocation == null) {
             setStatus("Search for a city first.");
             return;
         }
         try {
-            storage.addFavorite(city);
+            storage.addFavorite(currentLocation);
             refreshFavorites();
-            setStatus("Saved " + city + " to favorites.");
+            setStatus("Saved " + currentLocation.displayName() + " to favorites.");
         } catch (IOException e) {
             setStatus("Couldn't save favorite: " + e.getMessage());
         }
     }
 
-    private void removeSelectedFavorite(ListView<String> favoritesList) {
-        String selected = favoritesList.getSelectionModel().getSelectedItem();
+    private void removeSelectedFavorite(ListView<SavedLocation> favoritesList) {
+        SavedLocation selected = favoritesList.getSelectionModel().getSelectedItem();
         if (selected == null) {
             setStatus("Select a favorite to remove.");
             return;
@@ -319,10 +424,77 @@ public class WeatherDashboardFxApp extends Application {
         try {
             storage.removeFavorite(selected);
             refreshFavorites();
-            setStatus("Removed " + selected + ".");
+            setStatus("Removed " + selected.displayName() + ".");
         } catch (IOException e) {
             setStatus("Couldn't remove favorite: " + e.getMessage());
         }
+    }
+
+    private void addCurrentToCompare() {
+        if (currentWeather == null) {
+            setStatus("Search for a city to compare.");
+            return;
+        }
+        boolean alreadyAdded = compareList.stream()
+                .anyMatch(w -> w.latitude() == currentWeather.latitude()
+                        && w.longitude() == currentWeather.longitude());
+        if (alreadyAdded) {
+            setStatus(currentWeather.displayLocation() + " is already in compare.");
+            return;
+        }
+        if (compareList.size() >= MAX_COMPARE) {
+            setStatus("Compare holds up to " + MAX_COMPARE + " cities. Clear to add more.");
+            return;
+        }
+        compareList.add(currentWeather);
+        renderCompare();
+        setStatus("Added " + currentWeather.displayLocation() + " to compare.");
+    }
+
+    private void clearCompare() {
+        compareList.clear();
+        renderCompare();
+        setStatus("Compare cleared.");
+    }
+
+    private void renderCompare() {
+        compareRow.getChildren().clear();
+        if (compareList.isEmpty()) {
+            compareSection.setVisible(false);
+            compareSection.setManaged(false);
+            return;
+        }
+
+        compareSection.setVisible(true);
+        compareSection.setManaged(true);
+
+        Label compareTitle = new Label("COMPARE CITIES");
+        compareTitle.getStyleClass().add("card-title");
+
+        for (WeatherData data : compareList) {
+            Label city = new Label(data.city());
+            city.getStyleClass().add("compare-city");
+            Label region = new Label(buildRegionLine(data));
+            region.getStyleClass().add("compare-region");
+            Label temp = new Label(String.format("%.0f°", data.current().temperatureC()));
+            temp.getStyleClass().add("compare-temp");
+            Label stats = new Label(String.format("%s · %d%% humidity · %.0f km/h wind",
+                    data.current().conditions(), data.current().humidity(), data.current().windSpeedKmh()));
+            stats.getStyleClass().add("compare-stat");
+            stats.setWrapText(true);
+
+            VBox card = new VBox(6, city, region, temp, stats);
+            card.getStyleClass().add("compare-card");
+            card.setOnMouseClicked(e -> {
+                currentWeather = data;
+                currentLocation = SavedLocation.fromWeatherData(data);
+                renderWeather(data);
+                setStatus("Showing " + data.displayLocation());
+            });
+            compareRow.getChildren().add(card);
+        }
+
+        compareSection.getChildren().setAll(compareTitle, compareRow);
     }
 
     private void loadLocalLists() {
@@ -340,14 +512,10 @@ public class WeatherDashboardFxApp extends Application {
 
     private void refreshHistory() {
         try {
-            List<String> raw = storage.loadSearchHistory();
-            List<String> display = raw.stream()
-                    .map(entry -> {
-                        int sep = entry.lastIndexOf(" | ");
-                        return sep >= 0 ? entry.substring(sep + 3) : entry;
-                    })
-                    .toList();
-            historyItems.setAll(display);
+            List<SavedLocation> history = storage.loadSearchHistory();
+            List<SavedLocation> reversed = new ArrayList<>(history);
+            java.util.Collections.reverse(reversed);
+            historyItems.setAll(reversed);
         } catch (IOException e) {
             setStatus("Couldn't read history.");
         }
@@ -383,6 +551,11 @@ public class WeatherDashboardFxApp extends Application {
 
     private void setStatus(String message) {
         statusLabel.setText(message);
+    }
+
+    @FunctionalInterface
+    private interface WeatherFetcher {
+        WeatherData fetch() throws Exception;
     }
 
     public static void main(String[] args) {

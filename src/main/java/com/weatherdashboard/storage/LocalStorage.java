@@ -1,5 +1,7 @@
 package com.weatherdashboard.storage;
 
+import com.weatherdashboard.model.SavedLocation;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -35,29 +37,55 @@ public class LocalStorage {
         }
     }
 
-    public List<String> loadFavorites() throws IOException {
-        return readNonEmptyLines(favoritesFile);
+    public List<SavedLocation> loadFavorites() throws IOException {
+        List<SavedLocation> favorites = new ArrayList<>();
+        for (String line : readNonEmptyLines(favoritesFile)) {
+            favorites.add(parseLine(line));
+        }
+        return favorites;
     }
 
-    public void addFavorite(String city) throws IOException {
-        Set<String> favorites = new LinkedHashSet<>(loadFavorites());
-        favorites.add(city);
-        Files.write(favoritesFile, favorites, StandardCharsets.UTF_8);
+    public void addFavorite(SavedLocation location) throws IOException {
+        Set<String> lines = new LinkedHashSet<>();
+        for (SavedLocation existing : loadFavorites()) {
+            lines.add(existing.toStorageLine());
+        }
+        lines.add(location.toStorageLine());
+        Files.write(favoritesFile, lines, StandardCharsets.UTF_8);
     }
 
-    public void removeFavorite(String city) throws IOException {
-        Set<String> favorites = new LinkedHashSet<>(loadFavorites());
-        favorites.remove(city);
-        Files.write(favoritesFile, favorites, StandardCharsets.UTF_8);
+    public void removeFavorite(SavedLocation location) throws IOException {
+        Set<String> lines = new LinkedHashSet<>();
+        String target = location.toStorageLine();
+        for (SavedLocation existing : loadFavorites()) {
+            if (!existing.toStorageLine().equals(target)) {
+                lines.add(existing.toStorageLine());
+            }
+        }
+        Files.write(favoritesFile, lines, StandardCharsets.UTF_8);
     }
 
-    public void saveSearchHistory(String city) throws IOException {
-        String entry = LocalDateTime.now() + " | " + city + System.lineSeparator();
+    public void saveSearchHistory(SavedLocation location) throws IOException {
+        String entry = LocalDateTime.now() + "|" + location.toStorageLine() + System.lineSeparator();
         Files.writeString(historyFile, entry, StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
     }
 
-    public List<String> loadSearchHistory() throws IOException {
-        return readNonEmptyLines(historyFile);
+    public List<SavedLocation> loadSearchHistory() throws IOException {
+        List<SavedLocation> history = new ArrayList<>();
+        for (String line : readNonEmptyLines(historyFile)) {
+            int pipe = line.indexOf('|');
+            if (pipe >= 0 && pipe < line.length() - 1) {
+                history.add(parseLine(line.substring(pipe + 1)));
+            }
+        }
+        return history;
+    }
+
+    private SavedLocation parseLine(String line) {
+        if (line.contains("|") && line.matches("^-?\\d+\\.\\d+,-?\\d+\\.\\d+\\|.*")) {
+            return SavedLocation.fromStorageLine(line);
+        }
+        return new SavedLocation(0, 0, line, "", "");
     }
 
     private List<String> readNonEmptyLines(Path file) throws IOException {

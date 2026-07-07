@@ -1,5 +1,6 @@
 package com.weatherdashboard;
 
+import com.weatherdashboard.model.SavedLocation;
 import com.weatherdashboard.model.WeatherData;
 import com.weatherdashboard.service.OpenMeteoClient;
 import com.weatherdashboard.storage.LocalStorage;
@@ -72,7 +73,7 @@ public class WeatherDashboardApp {
             }
 
             WeatherData data = weatherClient.fetchWeather(city);
-            storage.saveSearchHistory(data.city());
+            storage.saveSearchHistory(SavedLocation.fromWeatherData(data));
             printWeather(data);
             printClothingRecommendation(data.current().temperatureC(), data.current().conditions());
             System.out.println();
@@ -82,7 +83,7 @@ public class WeatherDashboardApp {
     }
 
     private void printWeather(WeatherData data) {
-        System.out.println("\n--- Current Weather for " + data.city() + " ---");
+        System.out.println("\n--- Current Weather for " + data.displayLocation() + " ---");
         System.out.printf("Temperature: %.1f°C%n", data.current().temperatureC());
         System.out.printf("Humidity: %d%%%n", data.current().humidity());
         System.out.printf("Wind: %.1f km/h%n", data.current().windSpeedKmh());
@@ -109,13 +110,13 @@ public class WeatherDashboardApp {
 
     private void showFavorites() {
         try {
-            List<String> favorites = storage.loadFavorites();
+            List<SavedLocation> favorites = storage.loadFavorites();
             if (favorites.isEmpty()) {
                 System.out.println("No favorite cities yet.\n");
                 return;
             }
             System.out.println("--- Favorite Cities ---");
-            favorites.forEach(city -> System.out.println("- " + city));
+            favorites.forEach(loc -> System.out.println("- " + loc.displayName()));
             System.out.println();
         } catch (IOException ex) {
             System.out.println("Cannot read favorites: " + ex.getMessage() + "\n");
@@ -130,9 +131,10 @@ public class WeatherDashboardApp {
                 System.out.println("City cannot be empty.\n");
                 return;
             }
-            storage.addFavorite(city);
+            WeatherData data = weatherClient.fetchWeather(city);
+            storage.addFavorite(SavedLocation.fromWeatherData(data));
             System.out.println("Saved to favorites.\n");
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             System.out.println("Cannot save favorite: " + ex.getMessage() + "\n");
         }
     }
@@ -145,7 +147,16 @@ public class WeatherDashboardApp {
                 System.out.println("City cannot be empty.\n");
                 return;
             }
-            storage.removeFavorite(city);
+            List<SavedLocation> favorites = storage.loadFavorites();
+            SavedLocation match = favorites.stream()
+                    .filter(loc -> loc.city().equalsIgnoreCase(city))
+                    .findFirst()
+                    .orElse(null);
+            if (match == null) {
+                System.out.println("City not in favorites.\n");
+                return;
+            }
+            storage.removeFavorite(match);
             System.out.println("Removed from favorites.\n");
         } catch (IOException ex) {
             System.out.println("Cannot remove favorite: " + ex.getMessage() + "\n");
@@ -154,13 +165,13 @@ public class WeatherDashboardApp {
 
     private void showHistory() {
         try {
-            List<String> history = storage.loadSearchHistory();
+            List<SavedLocation> history = storage.loadSearchHistory();
             if (history.isEmpty()) {
                 System.out.println("No weather history yet.\n");
                 return;
             }
             System.out.println("--- Weather History ---");
-            history.forEach(item -> System.out.println("- " + item));
+            history.forEach(item -> System.out.println("- " + item.displayName()));
             System.out.println();
         } catch (IOException ex) {
             System.out.println("Cannot read history: " + ex.getMessage() + "\n");

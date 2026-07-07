@@ -1,5 +1,6 @@
 package com.weatherdashboard;
 
+import com.weatherdashboard.model.SavedLocation;
 import com.weatherdashboard.model.WeatherData;
 import com.weatherdashboard.service.OpenMeteoClient;
 import com.weatherdashboard.storage.LocalStorage;
@@ -43,8 +44,9 @@ public class WeatherDashboardSmokeTest {
         assertTrue(oslo.current().humidity() >= 0 && oslo.current().humidity() <= 100, "Oslo humidity 0-100");
         assertTrue(oslo.hourlyForecast().size() == 24, "24 hourly entries");
         assertTrue(oslo.dailyForecast().size() == 7, "7 daily entries");
-        System.out.printf("  Oslo: %.1f C, %s, humidity %d%%%n",
-                oslo.current().temperatureC(), oslo.current().conditions(), oslo.current().humidity());
+        assertTrue(oslo.country() != null && !oslo.country().isBlank(), "Oslo country present");
+        System.out.printf("  Oslo: %.1f C, %s, %s%n",
+                oslo.current().temperatureC(), oslo.current().conditions(), oslo.displayLocation());
 
         System.out.println("[API] Fetching Tehran...");
         WeatherData tehran = client.fetchWeather("Tehran");
@@ -65,21 +67,26 @@ public class WeatherDashboardSmokeTest {
         System.out.println("[Storage] Favorites and history...");
         LocalStorage storage = new LocalStorage(workDir.resolve(".weather-dashboard"));
 
-        storage.addFavorite("Oslo");
-        storage.addFavorite("London");
-        storage.addFavorite("Oslo");
+        SavedLocation osloLoc = new SavedLocation(59.91, 10.75, "Oslo", "Oslo", "Norway");
+        SavedLocation londonLoc = new SavedLocation(51.51, -0.13, "London", "England", "United Kingdom");
+        SavedLocation tokyoLoc = new SavedLocation(35.68, 139.65, "Tokyo", "Tokyo", "Japan");
 
-        List<String> favorites = storage.loadFavorites();
+        storage.addFavorite(osloLoc);
+        storage.addFavorite(londonLoc);
+        storage.addFavorite(osloLoc);
+
+        List<SavedLocation> favorites = storage.loadFavorites();
         assertTrue(favorites.size() == 2, "Two unique favorites");
-        assertTrue(favorites.contains("Oslo") && favorites.contains("London"), "Favorites contain cities");
+        assertTrue(favorites.stream().anyMatch(l -> l.city().equals("Oslo"))
+                && favorites.stream().anyMatch(l -> l.city().equals("London")), "Favorites contain cities");
 
-        storage.saveSearchHistory("Oslo");
-        storage.saveSearchHistory("Tokyo");
-        List<String> history = storage.loadSearchHistory();
+        storage.saveSearchHistory(osloLoc);
+        storage.saveSearchHistory(tokyoLoc);
+        List<SavedLocation> history = storage.loadSearchHistory();
         assertTrue(history.size() >= 2, "History has entries");
-        assertTrue(history.get(history.size() - 1).contains("Tokyo"), "Last history is Tokyo");
+        assertTrue(history.get(history.size() - 1).city().equals("Tokyo"), "Last history is Tokyo");
 
-        storage.removeFavorite("London");
+        storage.removeFavorite(londonLoc);
         assertTrue(storage.loadFavorites().size() == 1, "One favorite after remove");
         pass("Local storage OK");
     }

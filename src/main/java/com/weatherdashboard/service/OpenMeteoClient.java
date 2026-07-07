@@ -27,11 +27,25 @@ public class OpenMeteoClient {
         if (geo == null) {
             throw new IllegalArgumentException("City not found: " + city);
         }
+        return fetchWeatherFromGeo(geo);
+    }
 
+    public WeatherData fetchWeather(double latitude, double longitude, String city, String region, String country)
+            throws IOException, InterruptedException {
+        return fetchForecast(latitude, longitude, city, region, country);
+    }
+
+    private WeatherData fetchWeatherFromGeo(JsonObject geo) throws IOException, InterruptedException {
         double lat = geo.get("latitude").getAsDouble();
         double lon = geo.get("longitude").getAsDouble();
-        String normalizedCity = geo.get("name").getAsString();
+        String city = geo.get("name").getAsString();
+        String region = geo.has("admin1") && !geo.get("admin1").isJsonNull() ? geo.get("admin1").getAsString() : "";
+        String country = geo.has("country") && !geo.get("country").isJsonNull() ? geo.get("country").getAsString() : "";
+        return fetchForecast(lat, lon, city, region, country);
+    }
 
+    private WeatherData fetchForecast(double lat, double lon, String city, String region, String country)
+            throws IOException, InterruptedException {
         String weatherUrl = "https://api.open-meteo.com/v1/forecast"
                 + "?latitude=" + lat
                 + "&longitude=" + lon
@@ -82,7 +96,7 @@ public class OpenMeteoClient {
             ));
         }
 
-        return new WeatherData(normalizedCity, lat, lon, currentData, hourlyForecast, dailyForecast);
+        return new WeatherData(city, region, country, lat, lon, currentData, hourlyForecast, dailyForecast);
     }
 
     private JsonObject geocodeCity(String city) throws IOException, InterruptedException {
