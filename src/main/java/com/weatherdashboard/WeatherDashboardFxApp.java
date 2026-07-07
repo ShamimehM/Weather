@@ -319,7 +319,10 @@ public class WeatherDashboardFxApp extends Application {
                 .thenAccept(data -> Platform.runLater(() -> {
                     currentWeather = data;
                     currentLocation = SavedLocation.fromWeatherData(data);
-                    storage.saveSearchHistory(currentLocation);
+                    try {
+                        storage.saveSearchHistory(currentLocation);
+                    } catch (IOException ignored) {
+                    }
                     renderWeather(data);
                     refreshHistory();
                     setLoading(false);
