@@ -2,6 +2,9 @@
 
 A Java weather dashboard that fetches live forecasts from the [Open-Meteo](https://open-meteo.com/) API. Available as a JavaFX desktop app or a console application.
 
+<img width="739" height="506" alt="Screenshot 2026-07-07 143842" src="https://github.com/user-attachments/assets/93217fc0-cd29-463c-9f1e-0c176d5dacdf" />
+
+
 ## Features
 
 - Search weather by city name
